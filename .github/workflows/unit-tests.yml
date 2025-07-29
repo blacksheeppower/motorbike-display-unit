@@ -1,0 +1,33 @@
+name: Unit Tests
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+permissions:
+  contents: read
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: cmake --preset conf-unit-tests -B build/conf-unit-tests
+
+      - name: Build
+        run: cmake --build build/conf-unit-tests --preset build-unit-tests
+
+      - name: Test
+        run: ctest --preset test-unit-tests --test-dir build/conf-unit-tests
