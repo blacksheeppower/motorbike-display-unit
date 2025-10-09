@@ -25,8 +25,13 @@ SET(SOURCES screens/ui_SplashScreen.c
     fonts/ui_font_Tektur11.c
     fonts/ui_font_Tektur128.c
     fonts/ui_font_Tektur15.c
-    fonts/ui_font_Tektur16.c
     fonts/ui_font_Tektur24.c
-    fonts/ui_font_Tektur32.c)
+    fonts/ui_font_Tektur16Bold.c
+    fonts/ui_font_Tektur18Bold.c
+    fonts/ui_font_Tektur37Bold.c
+    fonts/ui_font_Tektur15Bold.c
+    fonts/ui_font_Tektur17Medium.c
+    fonts/ui_font_Tektur27Medium.c
+    fonts/ui_font_Tektur13Bold.c)
 
 add_library(ui ${SOURCES})
