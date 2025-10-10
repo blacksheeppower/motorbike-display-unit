@@ -45,6 +45,20 @@ RTC_HandleTypeDef hrtc;
 SDRAM_HandleTypeDef hsdram1;
 
 /* USER CODE BEGIN PV */
+static void VmuD_SendTime(void)
+{
+    //prepare frame
+	uint32_t txMailbox = 0;
+    CanMsgTxType message = {.Header.RTR = CAN_RTR_DATA, .Header.IDE = CAN_ID_STD, .Header.DLC = 8, .Header.ExtId = 0};
+
+    message.Header.StdId = 0x0601;
+    for (int i = 0; i < 8; i++)
+    {
+        message.Data[i] = Bike_SysData.Display.Time.bytes[i];
+    }
+    HAL_CAN_AbortTxRequest(&hcan1, txMailbox);
+    HAL_CAN_AddTxMessage( &hcan1, &message.Header, message.Data, &txMailbox);
+}
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -1226,7 +1240,7 @@ int main(void)
     Bike_SysData.Display.Metter.Remain = 0.0;
     Bike_SysData.Esc.Esc_1.Raw.Speed = 0;
     Bike_SysData.Display.IsCharing = VMU_NOT_CHARGE;
-    //Bike_SysData.Display.ScreenNow = VMUD_SCREEN_CHARING;
+    Bike_SysData.Display.TripScreenNow = VMUD_TRIP_SCREEN_TRIP_1;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -1265,6 +1279,7 @@ int main(void)
             RTC_GetTimeDate();
             Lcd_WriteMetter(Bike_SysData.Display.Metter);
             Lcd_WriteSetting(Bike_SysData.Display.Setting);
+            VmuD_SendTime();
             stick = HAL_GetTick();
         }
     }
@@ -1820,11 +1835,19 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
         }
     }
 }
-
+bool IsOdoReset = FALSE;
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	if (GPIO_Pin == GPIO_PIN_12)
 	{
+		if (Bike_SysData.Bms.Bms_1.Switch.Raw.AccStatus == 0 && Bike_SysData.Bms.Bms_2.Switch.Raw.AccStatus == 0)
+		{
+			IsOdoReset = TRUE;
+		}
+		else
+		{
+			IsOdoReset = FALSE;
+		}
 		if(IsExtPressButton == FALSE)
 		IsExtPressButton = TRUE;
 	}

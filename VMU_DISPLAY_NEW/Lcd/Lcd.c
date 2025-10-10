@@ -61,6 +61,7 @@ static bool skipAMPM = false;
  *                                        GLOBAL VARIABLES
  ==================================================================================================*/
 boolean IsExtPressButton = FALSE;
+extern bool IsOdoReset;
 /*==================================================================================================
  *                                    LOCAL FUNCTION PROTOTYPES
  ==================================================================================================*/
@@ -738,35 +739,44 @@ void Lcd_GetButton(void) {
             } else if (OldBtnState == BUTTON_PRESSED) {
                 if (HAL_GetTick() - Stick > 1500) {
                     OldBtnState = BUTTON_HOLD;
-                    if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_REMAIN) {
-                    	if (ClockEditState == CLOCK_EDIT_NONE) {
-							ClockEditState = CLOCK_MODE_FORMAT; // start editing clock
-							lastBlink = HAL_GetTick();
-							blinkState = true;
+                    if (IsOdoReset == TRUE)
+                    {
+                    	Bike_SysData.Display.Metter.Odo = 0;
+                    	Lcd_WriteMetter(Bike_SysData.Display.Metter);
+                    }
+                    else
+                    {
+						if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_REMAIN)
+						{
+							if (ClockEditState == CLOCK_EDIT_NONE) {
+								ClockEditState = CLOCK_MODE_FORMAT; // start editing clock
+								lastBlink = HAL_GetTick();
+								blinkState = true;
+							}
+							else if (ClockEditState == CLOCK_MODE_FORMAT)
+							{
+								// do nothing
+							}
+							else if (ClockEditState == CLOCK_HOUR_FORMAT)
+							{
+								// do nothing
+							}
+							else if (ClockEditState == CLOCK_EDIT_HOUR)
+							{
+								// do nothing
+							}
+							else if (ClockEditState == CLOCK_EDIT_MINUTE)
+							{
+								// do nothing
+							}
+							LastActionTime = HAL_GetTick();
+						} else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_TRIP_1) {
+							Bike_SysData.Display.Metter.Trip_1 = 0.0;
+							Metter_Trip_1_100Ms = 0;
+						} else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_TRIP_2) {
+							Bike_SysData.Display.Metter.Trip_2 = 0.0;
+							Metter_Trip_2_100Ms = 0;
 						}
-                    	else if (ClockEditState == CLOCK_MODE_FORMAT)
-                    	{
-                    		// do nothing
-                    	}
-                    	else if (ClockEditState == CLOCK_HOUR_FORMAT)
-                    	{
-                    		// do nothing
-                    	}
-                    	else if (ClockEditState == CLOCK_EDIT_HOUR)
-                    	{
-                    		// do nothing
-                        }
-                    	else if (ClockEditState == CLOCK_EDIT_MINUTE)
-                        {
-                        	// do nothing
-                        }
-                        LastActionTime = HAL_GetTick();
-                    } else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_TRIP_1) {
-                        Bike_SysData.Display.Metter.Trip_1 = 0.0;
-                        Metter_Trip_1_100Ms = 0;
-                    } else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_TRIP_2) {
-                        Bike_SysData.Display.Metter.Trip_2 = 0.0;
-                        Metter_Trip_2_100Ms = 0;
                     }
                 }
             }
