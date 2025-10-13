@@ -625,7 +625,7 @@ typedef union
         uint64_t :2;
         uint64_t Second :6;
         uint64_t :2;
-        uint64_t :16;
+        uint64_t AMPM :16;
     } Raw;
 } VmuMgs_VmuD_Time_Msg_Type;
 

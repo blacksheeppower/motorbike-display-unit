@@ -45,6 +45,7 @@ RTC_HandleTypeDef hrtc;
 SDRAM_HandleTypeDef hsdram1;
 
 /* USER CODE BEGIN PV */
+extern bool IsTimeEditting;
 static void VmuD_SendTime(void)
 {
     //prepare frame
@@ -52,12 +53,34 @@ static void VmuD_SendTime(void)
     CanMsgTxType message = {.Header.RTR = CAN_RTR_DATA, .Header.IDE = CAN_ID_STD, .Header.DLC = 8, .Header.ExtId = 0};
 
     message.Header.StdId = 0x0601;
+
+    if (Bike_SysData.Display.Setting.IsMode24)
+    {
+    	Bike_SysData.Display.Time.Raw.AMPM = 0;
+    }
+    else
+    {
+    	if (Bike_SysData.Display.Setting.IsModeAM)
+    	{
+    		Bike_SysData.Display.Time.Raw.AMPM = 1;
+    	}
+    	else
+    	{
+    		Bike_SysData.Display.Time.Raw.AMPM = 2;
+    	}
+    }
+
     for (int i = 0; i < 8; i++)
     {
         message.Data[i] = Bike_SysData.Display.Time.bytes[i];
     }
-    HAL_CAN_AbortTxRequest(&hcan1, txMailbox);
-    HAL_CAN_AddTxMessage( &hcan1, &message.Header, message.Data, &txMailbox);
+
+    // VMUF is logging data and creating files so we dont want to send time data
+    if (IsTimeEditting == false)
+    {
+		HAL_CAN_AbortTxRequest(&hcan1, txMailbox);
+		HAL_CAN_AddTxMessage( &hcan1, &message.Header, message.Data, &txMailbox);
+    }
 }
 /* USER CODE END PV */
 
@@ -1133,10 +1156,10 @@ void RTC_SetTimeDate(void)
 
     if (HAL_RTC_SetTime( &hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK) Error_Handler();
 
-    sDate.WeekDay = RTC_WEEKDAY_MONDAY;
-    sDate.Month = RTC_MONTH_AUGUST;
-    sDate.Date = 25;
-    sDate.Year = 25; // năm 2025
+    //sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+    sDate.Month = Bike_SysData.Display.Time.Raw.Month;
+    sDate.Date = Bike_SysData.Display.Time.Raw.Date;
+    sDate.Year = Bike_SysData.Display.Time.Raw.Year; // năm 2025
 
     if (HAL_RTC_SetDate( &hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK) Error_Handler();
 }
@@ -1303,10 +1326,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 8;
@@ -1644,7 +1666,9 @@ static void MX_RTC_Init(void)
   RTC_DateTypeDef sDate = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
-
+  /* Enable LSE and wait ready */
+  __HAL_RCC_LSE_CONFIG(RCC_LSE_ON);
+  while (__HAL_RCC_GET_FLAG(RCC_FLAG_LSERDY) == RESET) {}
   /* USER CODE END RTC_Init 1 */
 
   /** Initialize RTC Only
@@ -1652,7 +1676,7 @@ static void MX_RTC_Init(void)
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 249;
+  hrtc.Init.SynchPrediv = 255;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
@@ -1662,21 +1686,7 @@ static void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
-//  __HAL_RCC_PWR_CLK_ENABLE();
-//  HAL_PWR_EnableBkUpAccess();
-//  /* Enable LSE oscillator */
-//  __HAL_RCC_LSE_CONFIG(RCC_LSE_ON);
-//
-//  /* Wait until LSE is ready */
-//  while (__HAL_RCC_GET_FLAG(RCC_FLAG_LSERDY) == 0)
-//  {
-//	  // Optionally add a timeout to avoid infinite loop
-//  }
-//  /* Select LSE as RTC clock source */
-//  __HAL_RCC_RTC_CONFIG(RCC_RTCCLKSOURCE_LSE);
-//
-//  /* Enable RTC clock */
-//  __HAL_RCC_RTC_ENABLE();
+
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date
@@ -1691,8 +1701,8 @@ static void MX_RTC_Init(void)
 //    Error_Handler();
 //  }
 //  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
-//  sDate.Month = RTC_MONTH_JANUARY;
-//  sDate.Date = 0x1;
+//  sDate.Month = RTC_MONTH_OCTOBER;
+//  sDate.Date = 0x11;
 //  sDate.Year = 0x0;
 //
 //  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
@@ -1840,6 +1850,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	if (GPIO_Pin == GPIO_PIN_12)
 	{
+		// Normally odo is only reseted if key is off <=> no supply power so it only resets when we power VMUD board
 		if (Bike_SysData.Bms.Bms_1.Switch.Raw.AccStatus == 0 && Bike_SysData.Bms.Bms_2.Switch.Raw.AccStatus == 0)
 		{
 			IsOdoReset = TRUE;
