@@ -468,7 +468,7 @@ void Lcd_UpdateUi(void) {
 		}
 	}
 
-	if (ClockEditState == CLOCK_EDIT_DAY && (HAL_GetTick() - lastBlink >= 500))
+	else if (ClockEditState == CLOCK_EDIT_DAY && (HAL_GetTick() - lastBlink >= 500))
 	{
 		blinkState = !blinkState;
 		if (blinkState)
@@ -582,6 +582,7 @@ void Lcd_UpdateUi(void) {
 		float temp_trip1 = 0;
 		float temp_trip2 = 0;
 		float temp_range = 0;
+		uint16_t  temp_speed = 0;
 		//odo with other task calc
 		if (!Bike_SysData.Display.Setting.IsUnitKm)
 		{
@@ -653,15 +654,16 @@ void Lcd_UpdateUi(void) {
 		if (Bike_SysData.Esc.Esc_1.Raw.Speed != Old_Bike_SysData.Esc.Esc_1.Raw.Speed)
 		{
 			Old_Bike_SysData.Esc.Esc_1.Raw.Speed = Bike_SysData.Esc.Esc_1.Raw.Speed;
+			temp_speed =  Bike_SysData.Esc.Esc_1.Raw.Speed;
 
-			if (!Bike_SysData.Display.Setting.IsUnitKm)
+            if (!Bike_SysData.Display.Setting.IsUnitKm)
             {
-				Bike_SysData.Esc.Esc_1.Raw.Speed *= 0.621371;
+            	temp_speed = (uint16_t)(temp_speed * 0.621371f);
             }
 
-			sprintf(m, "%d", Bike_SysData.Esc.Esc_1.Raw.Speed);
+			sprintf(m, "%d", temp_speed);
 			lv_label_set_text(ui_lbSpeedValue, m);
-			lv_arc_set_value(ui_SpeedMetter, Bike_SysData.Esc.Esc_1.Raw.Speed);
+			lv_arc_set_value(ui_SpeedMetter, temp_speed);
 		}
 
 		//update warning

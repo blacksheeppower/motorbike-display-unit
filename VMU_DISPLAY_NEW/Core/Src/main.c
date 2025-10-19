@@ -1851,7 +1851,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	if (GPIO_Pin == GPIO_PIN_12)
 	{
 		// Normally odo is only reseted if key is off <=> no supply power so it only resets when we power VMUD board
-		if (Bike_SysData.Bms.Bms_1.Switch.Raw.AccStatus == 0 && Bike_SysData.Bms.Bms_2.Switch.Raw.AccStatus == 0)
+		if ((Bike_SysData.VmuM.Switch.Raw.AccStatus_1 == 0) && (Bike_SysData.VmuM.Switch.Raw.AccStatus_2 == 0))
 		{
 			IsOdoReset = TRUE;
 		}
