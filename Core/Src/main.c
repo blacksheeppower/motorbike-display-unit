@@ -1257,7 +1257,6 @@ int main(void)
 
     HAL_CAN_Start( &hcan1);  // Bắt đầu CAN
     HAL_CAN_ActivateNotification( &hcan1, CAN_IT_RX_FIFO0_MSG_PENDING); // Bật ngắt nhận
-    CanQueue_Init( &CanRxQueue);
     Lcd_LoadMetter();
     Lcd_LoadSetting();
     Bike_SysData.Display.Metter.Remain = 0.0;
