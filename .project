@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>VMU_DISPLAY_NEW</name>
+	<name>motorbike-display-unit</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -29,26 +29,4 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>Common</name>
-			<type>2</type>
-			<location>C:/Users/CuongNguyen/Documents/working/code/Lib/Common</location>
-		</link>
-		<link>
-			<name>FM24CLXX</name>
-			<type>2</type>
-			<location>C:/Users/CuongNguyen/Documents/working/ebike/motorbike-display-unit/VMU_DISPLAY_NEW/FM24CLXX</location>
-		</link>
-		<link>
-			<name>Queue_Can</name>
-			<type>2</type>
-			<location>C:/Users/CuongNguyen/Documents/working/code/Lib/Queue_Can</location>
-		</link>
-		<link>
-			<name>Vmu_Msg</name>
-			<type>2</type>
-			<location>C:/Users/CuongNguyen/Documents/working/ebike/motorbike-display-unit/VMU_DISPLAY_NEW/Vmu_Msg</location>
-		</link>
-	</linkedResources>
 </projectDescription>
