@@ -16,6 +16,8 @@ extern "C"{
  ==================================================================================================*/
 #include "Lcd.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 #include "Fm24clxx.h"
 /*==================================================================================================
  SOURCE FILE VERSION INFORMATION
@@ -44,6 +46,10 @@ static u32 lastBlink = 0;
 static bool blinkState = false;
 static uint32_t LastActionTime = 0;
 static bool skipAMPM = false;
+static uint8_t icon_on = 0;
+static bool icon_on_done = false;
+static bool head_light_first_on = false;
+//static bool charge_first_on = false;
 /*==================================================================================================
  *                                          LOCAL MACROS
  ==================================================================================================*/
@@ -141,60 +147,64 @@ static void Lcd_clockStateMachine(void)
 {
 	if (HAL_GetTick() - LastActionTime > 5000)
 	{
-		if (ClockEditState == CLOCK_MODE_FORMAT)
+		switch (ClockEditState)
 		{
-			if (skipAMPM)
-			{
+			case CLOCK_MODE_FORMAT:
+				if (skipAMPM)
+				{
+					ClockEditState = CLOCK_EDIT_HOUR;
+				}
+				else
+				{
+					ClockEditState = CLOCK_HOUR_FORMAT;
+				}
+				LastActionTime = HAL_GetTick();
+				break;
+
+			case CLOCK_HOUR_FORMAT:
 				ClockEditState = CLOCK_EDIT_HOUR;
-			}
-			else
-			{
-				ClockEditState = CLOCK_HOUR_FORMAT;
-			}
-			LastActionTime = HAL_GetTick();
-		}
-		else if (ClockEditState == CLOCK_HOUR_FORMAT)
-		{
-			ClockEditState = CLOCK_EDIT_HOUR;
-			if (Bike_SysData.Display.Setting.IsMode24)
-			{
-				Bike_SysData.Display.Time.Raw.Hour = RTC_ConvertTo24hFormat(Bike_SysData.Display.Time.Raw.Hour);
-			}
-			else
-			{
-				Bike_SysData.Display.Time.Raw.Hour = RTC_ConvertTo12hFormat(Bike_SysData.Display.Time.Raw.Hour);
-			}
-			LastActionTime = HAL_GetTick();
-		}
-		else if (ClockEditState == CLOCK_EDIT_HOUR)
-		{
-			ClockEditState = CLOCK_EDIT_MINUTE;
-			LastActionTime = HAL_GetTick();
-		}
-		else if (ClockEditState == CLOCK_EDIT_MINUTE)
-		{
-			ClockEditState = CLOCK_EDIT_NONE;
-			Bike_SysData.Display.TripScreenNow = VMUD_TRIP_SCREEN_TRIP_1;
-			lastBlink = HAL_GetTick();
-			blinkState = false;
-			IsTimeEditting = false;
-		}
-		else if (ClockEditState == CLOCK_EDIT_DAY)
-		{
-			ClockEditState = CLOCK_EDIT_MONTH;
-			LastActionTime = HAL_GetTick();
-		}
-		else if (ClockEditState == CLOCK_EDIT_MONTH)
-		{
-			ClockEditState = CLOCK_EDIT_YEAR;
-			LastActionTime = HAL_GetTick();
-		}
-		else if (ClockEditState == CLOCK_EDIT_YEAR)
-		{
-			ClockEditState = CLOCK_EDIT_NONE;
-			lastBlink = HAL_GetTick();
-			blinkState = false;
-			IsTimeEditting = false;
+				if (Bike_SysData.Display.Setting.IsMode24)
+				{
+					Bike_SysData.Display.Time.Raw.Hour = RTC_ConvertTo24hFormat(Bike_SysData.Display.Time.Raw.Hour);
+				}
+				else
+				{
+					Bike_SysData.Display.Time.Raw.Hour = RTC_ConvertTo12hFormat(Bike_SysData.Display.Time.Raw.Hour);
+				}
+				LastActionTime = HAL_GetTick();
+				break;
+
+			case CLOCK_EDIT_HOUR:
+				ClockEditState = CLOCK_EDIT_MINUTE;
+				LastActionTime = HAL_GetTick();
+				break;
+
+			case CLOCK_EDIT_MINUTE:
+				ClockEditState = CLOCK_EDIT_NONE;
+				Bike_SysData.Display.TripScreenNow = VMUD_TRIP_SCREEN_TRIP_1;
+				lastBlink = HAL_GetTick();
+				blinkState = false;
+				IsTimeEditting = false;
+				break;
+
+			case CLOCK_EDIT_DAY:
+				ClockEditState = CLOCK_EDIT_MONTH;
+				LastActionTime = HAL_GetTick();
+				break;
+
+			case CLOCK_EDIT_MONTH:
+				ClockEditState = CLOCK_EDIT_YEAR;
+				LastActionTime = HAL_GetTick();
+				break;
+
+			case CLOCK_EDIT_YEAR:
+				ClockEditState = CLOCK_EDIT_NONE;
+				lastBlink = HAL_GetTick();
+				blinkState = false;
+				IsTimeEditting = false;
+				break;
+
+			default: break;
 		}
 	}
 }
@@ -294,48 +304,50 @@ static void HandleLongPress(void) {
     }
     else
     {
-        if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_REMAIN)
-        {
-            if (ClockEditState == CLOCK_EDIT_NONE)
-            {
-                ClockEditState = CLOCK_MODE_FORMAT;
-                lastBlink = HAL_GetTick();
-                blinkState = true;
-                IsTimeEditting = true;
-            } // No state transitions for other clock edit states
-            LastActionTime = HAL_GetTick();
-        }
-        else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_TRIP_1)
-        {
-            Bike_SysData.Display.Metter.Trip_1 = 0.0;
-            Metter_Trip_1_100Ms = 0;
-        }
-        else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_TRIP_2)
-        {
-            Bike_SysData.Display.Metter.Trip_2 = 0.0;
-            Metter_Trip_2_100Ms = 0;
-        }
+    	switch (Bike_SysData.Display.TripScreenNow)
+    	{
+			case VMUD_TRIP_SCREEN_REMAIN:
+				if (ClockEditState == CLOCK_EDIT_NONE)
+				{
+					ClockEditState = CLOCK_MODE_FORMAT;
+					lastBlink = HAL_GetTick();
+					blinkState = true;
+					IsTimeEditting = true;
+				} // No state transitions for other clock edit states
+				LastActionTime = HAL_GetTick();
+				break;
+			case VMUD_TRIP_SCREEN_TRIP_1:
+				Bike_SysData.Display.Metter.Trip_1 = 0.0;
+				Metter_Trip_1_100Ms = 0;
+				break;
+			case VMUD_TRIP_SCREEN_TRIP_2:
+				Bike_SysData.Display.Metter.Trip_2 = 0.0;
+				Metter_Trip_2_100Ms = 0;
+				break;
+			default: break;
+    	}
     }
 }
 
 // Helper function to handle button release
 static void HandleButtonRelease(void) {
-    if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_REMAIN)
-    {
-        if (ClockEditState == CLOCK_EDIT_NONE)
-        {
-            Bike_SysData.Display.TripScreenNow = VMUD_TRIP_SCREEN_TRIP_1;
-            Bike_SysData.Display.Setting.IsUnitKm = !Bike_SysData.Display.Setting.IsUnitKm;
-        }
-    }
-    else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_TRIP_1)
-    {
-        Bike_SysData.Display.TripScreenNow = VMUD_TRIP_SCREEN_TRIP_2;
-    }
-    else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_TRIP_2)
-    {
-        Bike_SysData.Display.TripScreenNow = VMUD_TRIP_SCREEN_REMAIN;
-    }
+	switch (Bike_SysData.Display.TripScreenNow)
+	{
+		case VMUD_TRIP_SCREEN_REMAIN:
+			if (ClockEditState == CLOCK_EDIT_NONE)
+			{
+				Bike_SysData.Display.TripScreenNow = VMUD_TRIP_SCREEN_TRIP_1;
+				Bike_SysData.Display.Setting.IsUnitKm = !Bike_SysData.Display.Setting.IsUnitKm;
+			}
+			break;
+		case VMUD_TRIP_SCREEN_TRIP_1:
+			Bike_SysData.Display.TripScreenNow = VMUD_TRIP_SCREEN_TRIP_2;
+			break;
+		case VMUD_TRIP_SCREEN_TRIP_2:
+			Bike_SysData.Display.TripScreenNow = VMUD_TRIP_SCREEN_REMAIN;
+			break;
+		default: break;
+	}
 }
 /*==================================================================================================
  *                                         GLOBAL FUNCTIONS
@@ -371,7 +383,6 @@ void Lcd_UpdateUi(void) {
 	//CanMsgRxType frame = {0};
 	char m[20] = { 0 };
 	static Bike_SysDataType Old_Bike_SysData = { 0 };
-
 	Lcd_clockStateMachine();
 
 	//update time
@@ -403,121 +414,85 @@ void Lcd_UpdateUi(void) {
 		}
 	}
 
-	if (ClockEditState == CLOCK_MODE_FORMAT && (HAL_GetTick() - lastBlink >= 500))
-	{
-		blinkState = !blinkState;
-
-		if (blinkState)
-		{
-			if (Bike_SysData.Display.Setting.IsMode24 == true)
-			{
-				sprintf(m, "Mode 24");
-			}
-			else
-			{
-				sprintf(m, "Mode 12");
-			}
-		}
-		else
-		{
-			sprintf(m, "  ");
-		}
-	}
-	else if (ClockEditState == CLOCK_HOUR_FORMAT && (HAL_GetTick() - lastBlink >= 500))
-	{
-		blinkState = !blinkState;
-
-		if (blinkState)
-		{
-			if (Bike_SysData.Display.Setting.IsModeAM == true)
-			{
-				sprintf(m, "AM");
-			}
-			else
-			{
-				sprintf(m, "PM");
-			}
-		}
-		else
-		{
-			sprintf(m, "  ");
-		}
-	}
-	else if (ClockEditState == CLOCK_EDIT_HOUR && (HAL_GetTick() - lastBlink >= 500))
-	{
-		blinkState = !blinkState;
-		if (blinkState)
-		{
-			sprintf(m, "  :%02d", Bike_SysData.Display.Time.Raw.Minute);
-		}
-		else
-		{
-			sprintf(m, "%02d:%02d", Bike_SysData.Display.Time.Raw.Hour, Bike_SysData.Display.Time.Raw.Minute);
-		}
-	}
-	else if (ClockEditState == CLOCK_EDIT_MINUTE && (HAL_GetTick() - lastBlink >= 500))
-	{
-		blinkState = !blinkState;
-		if (blinkState)
-		{
-			sprintf(m, "%02d:  ", Bike_SysData.Display.Time.Raw.Hour);
-		}
-		else
-		{
-			sprintf(m, "%02d:%02d", Bike_SysData.Display.Time.Raw.Hour, Bike_SysData.Display.Time.Raw.Minute);
-		}
-	}
-
-	else if (ClockEditState == CLOCK_EDIT_DAY && (HAL_GetTick() - lastBlink >= 500))
-	{
-		blinkState = !blinkState;
-		if (blinkState)
-		{
-			sprintf(m, "  - %02d - %02d", Bike_SysData.Display.Time.Raw.Month, Bike_SysData.Display.Time.Raw.Year);
-		}
-		else
-		{
-			sprintf(m, "%02d - %02d - %02d", Bike_SysData.Display.Time.Raw.Date, Bike_SysData.Display.Time.Raw.Month, Bike_SysData.Display.Time.Raw.Year);
-		}
-	}
-	else if (ClockEditState == CLOCK_EDIT_MONTH && (HAL_GetTick() - lastBlink >= 500))
-	{
-		blinkState = !blinkState;
-		if (blinkState)
-		{
-			sprintf(m, "%02d -   - %02d", Bike_SysData.Display.Time.Raw.Date, Bike_SysData.Display.Time.Raw.Year);
-		}
-		else
-		{
-			sprintf(m, "%02d - %02d - %02d", Bike_SysData.Display.Time.Raw.Date, Bike_SysData.Display.Time.Raw.Month, Bike_SysData.Display.Time.Raw.Year);
-		}
-	}
-	else if (ClockEditState == CLOCK_EDIT_YEAR && (HAL_GetTick() - lastBlink >= 500))
-	{
-		blinkState = !blinkState;
-		if (blinkState)
-		{
-			sprintf(m, "%02d - %02d -  ", Bike_SysData.Display.Time.Raw.Date, Bike_SysData.Display.Time.Raw.Month);
-		}
-		else
-		{
-			sprintf(m, "%02d - %02d - %02d", Bike_SysData.Display.Time.Raw.Date, Bike_SysData.Display.Time.Raw.Month, Bike_SysData.Display.Time.Raw.Year);
-		}
-	}
-	else
-	{
-		if (Bike_SysData.Display.Setting.IsMode24)
-		{
-			sprintf(m, "%02d:%02d", Bike_SysData.Display.Time.Raw.Hour, Bike_SysData.Display.Time.Raw.Minute);
-		}
-		else
-		{
-			sprintf(m, "%02d:%02d %s", Bike_SysData.Display.Time.Raw.Hour, Bike_SysData.Display.Time.Raw.Minute, Bike_SysData.Display.Setting.IsModeAM ? "AM" : "PM");
-		}
-	}
-
 	if (HAL_GetTick() - lastBlink >= 500)
 	{
+	    lastBlink = HAL_GetTick();
+	    blinkState = !blinkState;
+
+	    switch (ClockEditState)
+	    {
+	        case CLOCK_MODE_FORMAT:
+	            if (blinkState)
+	                sprintf(m, "Mode %s", Bike_SysData.Display.Setting.IsMode24 ? "24" : "12");
+	            else
+	                sprintf(m, "  ");
+	            break;
+
+	        case CLOCK_HOUR_FORMAT:
+	            if (blinkState)
+	                sprintf(m, "%s", Bike_SysData.Display.Setting.IsModeAM ? "AM" : "PM");
+	            else
+	                sprintf(m, "  ");
+	            break;
+
+	        case CLOCK_EDIT_HOUR:
+	            if (blinkState)
+	                sprintf(m, "  :%02d", Bike_SysData.Display.Time.Raw.Minute);
+	            else
+	                sprintf(m, "%02d:%02d", Bike_SysData.Display.Time.Raw.Hour, Bike_SysData.Display.Time.Raw.Minute);
+	            break;
+
+	        case CLOCK_EDIT_MINUTE:
+	            if (blinkState)
+	                sprintf(m, "%02d:  ", Bike_SysData.Display.Time.Raw.Hour);
+	            else
+	                sprintf(m, "%02d:%02d", Bike_SysData.Display.Time.Raw.Hour, Bike_SysData.Display.Time.Raw.Minute);
+	            break;
+
+	        case CLOCK_EDIT_DAY:
+	            if (blinkState)
+	                sprintf(m, "  - %02d - %02d", Bike_SysData.Display.Time.Raw.Month, Bike_SysData.Display.Time.Raw.Year);
+	            else
+	                sprintf(m, "%02d - %02d - %02d",
+	                        Bike_SysData.Display.Time.Raw.Date,
+	                        Bike_SysData.Display.Time.Raw.Month,
+	                        Bike_SysData.Display.Time.Raw.Year);
+	            break;
+
+	        case CLOCK_EDIT_MONTH:
+	            if (blinkState)
+	                sprintf(m, "%02d -   - %02d", Bike_SysData.Display.Time.Raw.Date, Bike_SysData.Display.Time.Raw.Year);
+	            else
+	                sprintf(m, "%02d - %02d - %02d",
+	                        Bike_SysData.Display.Time.Raw.Date,
+	                        Bike_SysData.Display.Time.Raw.Month,
+	                        Bike_SysData.Display.Time.Raw.Year);
+	            break;
+
+	        case CLOCK_EDIT_YEAR:
+	            if (blinkState)
+	                sprintf(m, "%02d - %02d -  ",
+	                        Bike_SysData.Display.Time.Raw.Date,
+	                        Bike_SysData.Display.Time.Raw.Month);
+	            else
+	                sprintf(m, "%02d - %02d - %02d",
+	                        Bike_SysData.Display.Time.Raw.Date,
+	                        Bike_SysData.Display.Time.Raw.Month,
+	                        Bike_SysData.Display.Time.Raw.Year);
+	            break;
+
+	        default:
+	            // Normal clock display
+	            if (Bike_SysData.Display.Setting.IsMode24)
+	                sprintf(m, "%02d:%02d", Bike_SysData.Display.Time.Raw.Hour, Bike_SysData.Display.Time.Raw.Minute);
+	            else
+	                sprintf(m, "%02d:%02d %s",
+	                        Bike_SysData.Display.Time.Raw.Hour,
+	                        Bike_SysData.Display.Time.Raw.Minute,
+	                        Bike_SysData.Display.Setting.IsModeAM ? "AM" : "PM");
+	            break;
+	    }
+
 		lv_label_set_text(ui_CharingScreenlbTime1, m);
 		lv_label_set_text(ui_lbTime, m);
 		lastBlink = HAL_GetTick();
@@ -543,7 +518,7 @@ void Lcd_UpdateUi(void) {
 			if (Bike_SysData.Display.ScreenNow != VMUD_SCREEN_CHARING)
 			{
 				lv_disp_load_scr(ui_ChargingScreen);
-				lv_img_set_src(ui_CharingScreenImgChargeStatus1, &ui_img_charge_on_png);
+				lv_obj_clear_flag(ui_ImgChargeStatus, LV_OBJ_FLAG_HIDDEN);
 				Bike_SysData.Display.ScreenNow = VMUD_SCREEN_CHARING;
 				sprintf(m, "%d%%", BatteryPercent);
 				{
@@ -569,7 +544,7 @@ void Lcd_UpdateUi(void) {
 			if (Bike_SysData.Display.ScreenNow == VMUD_SCREEN_CHARING)
 			{
 				lv_disp_load_scr(ui_HomeScreen);
-				lv_img_set_src(ui_ImgChargeStatus, &ui_img_charge_off_png);
+				lv_obj_add_flag(ui_ImgChargeStatus, LV_OBJ_FLAG_HIDDEN);
 				Bike_SysData.Display.ScreenNow = VMUD_SCREEN_HOME;
 			}
 		}
@@ -592,10 +567,15 @@ void Lcd_UpdateUi(void) {
 		{
 			temp_odo = Bike_SysData.Display.Metter.Odo;
 		}
-		sprintf(m, "%.1f", temp_odo / 1.0);
-		lv_label_set_text(ui_lbOdoValue, m);
 
 
+		if (fabs(temp_odo - Old_Bike_SysData.Display.Metter.Odo) >= 0.1)
+		{
+			sprintf(m, "%.1f", temp_odo / 1.0);
+			lv_label_set_text(ui_lbOdoValue, m);
+		}
+
+		Old_Bike_SysData.Display.Metter.Odo = temp_odo;
 		if (Bike_SysData.Display.TripScreenNow != Old_Bike_SysData.Display.TripScreenNow)
 		{
 			Old_Bike_SysData.Display.TripScreenNow = Bike_SysData.Display.TripScreenNow;
@@ -622,8 +602,15 @@ void Lcd_UpdateUi(void) {
 			{
 				temp_trip1 = Bike_SysData.Display.Metter.Trip_1;
 			}
-			sprintf(m, "%.1f", temp_trip1 / 1.0);
-			lv_label_set_text(ui_lbTripValue, m);
+
+			if (fabs(temp_trip1 - Old_Bike_SysData.Display.Metter.Trip_1) >= 0.1)
+			{
+				sprintf(m, "%.1f", temp_trip1 / 1.0);
+				lv_label_set_text(ui_lbTripValue, m);
+			}
+
+			Old_Bike_SysData.Display.Metter.Trip_1 = temp_trip1;
+
 		}
 		else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_TRIP_2)
 		{
@@ -635,7 +622,13 @@ void Lcd_UpdateUi(void) {
 			{
 				temp_trip2 = Bike_SysData.Display.Metter.Trip_2;
 			}
-			sprintf(m, "%.1f", temp_trip2 / 1.0);
+			if (fabs(temp_trip1 - Old_Bike_SysData.Display.Metter.Trip_2) >= 0.1)
+			{
+				sprintf(m, "%.1f", temp_trip2 / 1.0);
+				lv_label_set_text(ui_lbTripValue, m);
+			}
+
+			Old_Bike_SysData.Display.Metter.Trip_2 = temp_trip2;
 		}
 		else if (Bike_SysData.Display.TripScreenNow == VMUD_TRIP_SCREEN_REMAIN)
 		{
@@ -651,7 +644,7 @@ void Lcd_UpdateUi(void) {
 		}
 
 		//speed
-		if (Bike_SysData.Esc.Esc_1.Raw.Speed != Old_Bike_SysData.Esc.Esc_1.Raw.Speed)
+		if (abs(Bike_SysData.Esc.Esc_1.Raw.Speed - Old_Bike_SysData.Esc.Esc_1.Raw.Speed) >= 1)
 		{
 			Old_Bike_SysData.Esc.Esc_1.Raw.Speed = Bike_SysData.Esc.Esc_1.Raw.Speed;
 			temp_speed =  Bike_SysData.Esc.Esc_1.Raw.Speed;
@@ -661,7 +654,7 @@ void Lcd_UpdateUi(void) {
             	temp_speed = (uint16_t)(temp_speed * 0.621371f);
             }
 
-			sprintf(m, "%d", temp_speed);
+			sprintf(m, "%u", temp_speed);
 			lv_label_set_text(ui_lbSpeedValue, m);
 			lv_arc_set_value(ui_SpeedMetter, temp_speed);
 		}
@@ -677,41 +670,78 @@ void Lcd_UpdateUi(void) {
 			if ((Old_Bike_SysData.Esc.Esc_3.Raw.ErrorCode != 0 || Old_Bike_SysData.VmuM.Fault.Raw.FaultBms1 != 0 || Old_Bike_SysData.VmuM.Fault.Raw.FaultBms1 != 0)
 					&& (Bike_SysData.VmuM.Switch.Raw.AccStatus_1 == 1) && (Bike_SysData.VmuM.Switch.Raw.AccStatus_2 == 1))
 			{
-				lv_img_set_src(ui_imgWarning, &ui_img_warning_on_png);
+				lv_obj_clear_flag(ui_imgWarning, LV_OBJ_FLAG_HIDDEN);
 			}
 			else
 			{
-				lv_img_set_src(ui_imgWarning, &ui_img_warning_off_png);
+				lv_obj_add_flag(ui_imgWarning, LV_OBJ_FLAG_HIDDEN);
 			}
 
 		}
+//		if ((Bike_SysData.Esc.Esc_3.Raw.ErrorCode != 0 || Bike_SysData.VmuM.Fault.Raw.FaultBms1 != 0 || Bike_SysData.VmuM.Fault.Raw.FaultBms1 != 0)
+//				&& (Bike_SysData.VmuM.Switch.Raw.AccStatus_1 == 1) && (Bike_SysData.VmuM.Switch.Raw.AccStatus_2 == 1))
+//		{
+//			lv_obj_clear_flag(ui_imgWarning, LV_OBJ_FLAG_HIDDEN);
+//		}
+//		else
+//		{
+//			lv_obj_add_flag(ui_imgWarning, LV_OBJ_FLAG_HIDDEN);
+//		}
 
 		//turn LED
+//		if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus != Bike_SysData.VmuF.Light.Raw.TurnLightStatus)
+//		{
+//			Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus = Bike_SysData.VmuF.Light.Raw.TurnLightStatus;
+//			if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus == 0)
+//			{
+//				lv_img_set_src(ui_imgXinNhanLeft, &ui_img_left_off_png);
+//				lv_img_set_src(ui_imgXinNhanRight, &ui_img_right_off_png);
+//			}
+//			else if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus == 1)
+//			{
+//				lv_img_set_src(ui_imgXinNhanLeft, &ui_img_left_on_png);
+//				lv_img_set_src(ui_imgXinNhanRight, &ui_img_right_off_png);
+//			}
+//			else if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus == 2)
+//			{
+//				lv_img_set_src(ui_imgXinNhanLeft, &ui_img_left_off_png);
+//				lv_img_set_src(ui_imgXinNhanRight, &ui_img_right_on_png);
+//			}
+//			else if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus == 3)
+//			{
+//				lv_img_set_src(ui_imgXinNhanLeft, &ui_img_left_on_png);
+//				lv_img_set_src(ui_imgXinNhanRight, &ui_img_right_on_png);
+//			}
+//			lv_obj_invalidate(ui_imgXinNhanLeft);
+//			lv_obj_invalidate(ui_imgXinNhanRight);
+//		}
+
 		if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus != Bike_SysData.VmuF.Light.Raw.TurnLightStatus)
 		{
 			Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus = Bike_SysData.VmuF.Light.Raw.TurnLightStatus;
-			if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus == 0)
+			switch (Bike_SysData.VmuF.Light.Raw.TurnLightStatus)
 			{
-				lv_img_set_src(ui_imgXinNhanLeft, &ui_img_left_off_png);
-				lv_img_set_src(ui_imgXinNhanRight, &ui_img_right_off_png);
+				case 0:
+					lv_obj_add_flag(ui_imgXinNhanRight, LV_OBJ_FLAG_HIDDEN);
+					lv_obj_add_flag(ui_imgXinNhanLeft, LV_OBJ_FLAG_HIDDEN);
+					break;
+
+				case 1: // Xi-nhan trái
+					lv_obj_clear_flag(ui_imgXinNhanLeft, LV_OBJ_FLAG_HIDDEN);
+					break;
+
+				case 2: // Xi-nhan phải
+					lv_obj_clear_flag(ui_imgXinNhanRight, LV_OBJ_FLAG_HIDDEN);
+					break;
+
+				case 3: // Cả hai
+					lv_obj_clear_flag(ui_imgXinNhanLeft, LV_OBJ_FLAG_HIDDEN);
+					lv_obj_clear_flag(ui_imgXinNhanRight, LV_OBJ_FLAG_HIDDEN);
+					break;
+
+				default:
+					break;
 			}
-			else if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus == 1)
-			{
-				lv_img_set_src(ui_imgXinNhanLeft, &ui_img_left_on_png);
-				lv_img_set_src(ui_imgXinNhanRight, &ui_img_right_off_png);
-			}
-			else if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus == 2)
-			{
-				lv_img_set_src(ui_imgXinNhanLeft, &ui_img_left_off_png);
-				lv_img_set_src(ui_imgXinNhanRight, &ui_img_right_on_png);
-			}
-			else if (Old_Bike_SysData.VmuF.Light.Raw.TurnLightStatus == 3)
-			{
-				lv_img_set_src(ui_imgXinNhanLeft, &ui_img_left_on_png);
-				lv_img_set_src(ui_imgXinNhanRight, &ui_img_right_on_png);
-			}
-			lv_obj_invalidate(ui_imgXinNhanLeft);
-			lv_obj_invalidate(ui_imgXinNhanRight);
 		}
 
 		//fog light
@@ -721,22 +751,20 @@ void Lcd_UpdateUi(void) {
 		}
 
 		//Head Light
-		if (Old_Bike_SysData.VmuF.Light.Raw.HeadLightStatus != Bike_SysData.VmuF.Light.Raw.HeadLightStatus)
-		{
-			Old_Bike_SysData.VmuF.Light.Raw.HeadLightStatus = Bike_SysData.VmuF.Light.Raw.HeadLightStatus;
-
-			if (Old_Bike_SysData.VmuF.Light.Raw.HeadLightStatus == 0)
-			{
-				lv_img_set_src(ui_imgCosPha, &ui_img_cos_off_png);
-			}
-			else if (Old_Bike_SysData.VmuF.Light.Raw.HeadLightStatus == 1)
-			{
-				lv_img_set_src(ui_imgCosPha, &ui_img_cos_on_png);
-			}
-			else if (Old_Bike_SysData.VmuF.Light.Raw.HeadLightStatus == 2 || Old_Bike_SysData.VmuF.Light.Raw.HeadLightStatus == 3) // 3 mean while low beam on, we turn on high beam so it will overlap low beam
-			{
-				lv_img_set_src(ui_imgCosPha, &ui_img_pha_on_png);
-			}
+		if (Old_Bike_SysData.VmuF.Light.Raw.HeadLightStatus != Bike_SysData.VmuF.Light.Raw.HeadLightStatus) {
+		    if (Bike_SysData.VmuF.Light.Raw.HeadLightStatus == 0) {
+		    	//lv_img_set_src(ui_imgCosPha, &ui_img_cos_off_png);
+		    	if(icon_on >= 30)
+		        lv_obj_add_flag(ui_imgCosPha, LV_OBJ_FLAG_HIDDEN);
+		    } else if (Bike_SysData.VmuF.Light.Raw.HeadLightStatus == 1) {
+		        lv_img_set_src(ui_imgCosPha, &ui_img_cos_on_png);
+		        lv_obj_clear_flag(ui_imgCosPha, LV_OBJ_FLAG_HIDDEN);
+		    } else if (Bike_SysData.VmuF.Light.Raw.HeadLightStatus == 2 || Bike_SysData.VmuF.Light.Raw.HeadLightStatus == 3) {
+		        lv_img_set_src(ui_imgCosPha, &ui_img_pha_on_png);
+		        lv_obj_clear_flag(ui_imgCosPha, LV_OBJ_FLAG_HIDDEN);
+		    }
+		    //head_light_first_on = true;
+		    Old_Bike_SysData.VmuF.Light.Raw.HeadLightStatus = Bike_SysData.VmuF.Light.Raw.HeadLightStatus;
 		}
 
 		//Gear D-N
@@ -754,25 +782,47 @@ void Lcd_UpdateUi(void) {
 		}
 
 		//over temperature
+//		if (Old_Bike_SysData.Esc.Esc_2.Raw.ControllerTemp != Bike_SysData.Esc.Esc_2.Raw.ControllerTemp ||    //
+//			Old_Bike_SysData.Esc.Esc_2.Raw.MotorTemp != Bike_SysData.Esc.Esc_2.Raw.MotorTemp ||
+//			Old_Bike_SysData.VmuM.Temperature.Raw.Temperature != Bike_SysData.VmuM.Temperature.Raw.Temperature)
+//		{
+//			Old_Bike_SysData.Esc.Esc_2.Raw.ControllerTemp = Bike_SysData.Esc.Esc_2.Raw.ControllerTemp;
+//			Old_Bike_SysData.Esc.Esc_2.Raw.MotorTemp = Bike_SysData.Esc.Esc_2.Raw.MotorTemp;
+//			float temp_temperature = 0;
+//			memcpy(&temp_temperature, &Bike_SysData.VmuM.Temperature, sizeof(float));
+//			Old_Bike_SysData.VmuM.Temperature.Raw.Temperature = Bike_SysData.VmuM.Temperature.Raw.Temperature;
+//
+//			if ((Old_Bike_SysData.Esc.Esc_2.Raw.ControllerTemp - 273) > 60
+//					|| (Old_Bike_SysData.Esc.Esc_2.Raw.MotorTemp - 273) > 60
+//					|| temp_temperature > 60)
+//			{
+//				lv_img_set_src(ui_imgTemOver, &ui_img_over_tem_on_png);
+//			}
+//			else
+//			{
+//				lv_img_set_src(ui_imgTemOver, &ui_img_over_tem_off_png);
+//			}
+//		}
+
 		if (Old_Bike_SysData.Esc.Esc_2.Raw.ControllerTemp != Bike_SysData.Esc.Esc_2.Raw.ControllerTemp ||    //
 			Old_Bike_SysData.Esc.Esc_2.Raw.MotorTemp != Bike_SysData.Esc.Esc_2.Raw.MotorTemp ||
 			Old_Bike_SysData.VmuM.Temperature.Raw.Temperature != Bike_SysData.VmuM.Temperature.Raw.Temperature)
 		{
 			Old_Bike_SysData.Esc.Esc_2.Raw.ControllerTemp = Bike_SysData.Esc.Esc_2.Raw.ControllerTemp;
 			Old_Bike_SysData.Esc.Esc_2.Raw.MotorTemp = Bike_SysData.Esc.Esc_2.Raw.MotorTemp;
+			Old_Bike_SysData.VmuM.Temperature.Raw.Temperature = Bike_SysData.VmuM.Temperature.Raw.Temperature;
 			float temp_temperature = 0;
 			memcpy(&temp_temperature, &Bike_SysData.VmuM.Temperature, sizeof(float));
-			Old_Bike_SysData.VmuM.Temperature.Raw.Temperature = Bike_SysData.VmuM.Temperature.Raw.Temperature;
-
-			if ((Old_Bike_SysData.Esc.Esc_2.Raw.ControllerTemp - 273) > 60
-					|| (Old_Bike_SysData.Esc.Esc_2.Raw.MotorTemp - 273) > 60
+			if ((Bike_SysData.Esc.Esc_2.Raw.ControllerTemp - 273) > 60
+					|| (Bike_SysData.Esc.Esc_2.Raw.MotorTemp - 273) > 60
 					|| temp_temperature > 60)
 			{
-				lv_img_set_src(ui_imgTemOver, &ui_img_over_tem_on_png);
+				lv_obj_clear_flag(ui_imgTemOver, LV_OBJ_FLAG_HIDDEN);
 			}
 			else
 			{
-				lv_img_set_src(ui_imgTemOver, &ui_img_over_tem_off_png);
+				lv_obj_add_flag(ui_imgTemOver, LV_OBJ_FLAG_HIDDEN);
+
 			}
 		}
 	}
@@ -819,6 +869,27 @@ void Lcd_UpdateUi(void) {
 				lv_obj_set_style_arc_color(ui_CharingScreenBatteryMetter1, lv_color_hex(0xF5F5F5), LV_PART_INDICATOR | LV_STATE_DEFAULT);
 			}
 		}
+	}
+
+	if (icon_on < 30)
+	{
+		icon_on++;
+	}
+	else if (icon_on_done == false)
+	{
+		lv_obj_add_flag(ui_imgWarning, LV_OBJ_FLAG_HIDDEN);
+		lv_obj_add_flag(ui_imgTemOver, LV_OBJ_FLAG_HIDDEN);
+		lv_obj_add_flag(ui_imgXinNhanRight, LV_OBJ_FLAG_HIDDEN);
+		lv_obj_add_flag(ui_imgXinNhanLeft, LV_OBJ_FLAG_HIDDEN);
+		if (Bike_SysData.VmuF.Light.Raw.HeadLightStatus == 0)
+		{
+			lv_obj_add_flag(ui_imgCosPha, LV_OBJ_FLAG_HIDDEN);
+		}
+		if (Bike_SysData.VmuM.Switch.Raw.ChargeStatus != VMU_CHARGING)
+		{
+			lv_obj_add_flag(ui_ImgChargeStatus, LV_OBJ_FLAG_HIDDEN);
+		}
+		icon_on_done = true;
 	}
 }
 
